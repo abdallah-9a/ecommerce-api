@@ -1,46 +1,55 @@
-from django.shortcuts import render, get_object_or_404
-from django.core.exceptions import ValidationError
-from rest_framework import generics
+from django.shortcuts import get_object_or_404
+from rest_framework import views, status,viewsets
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .serializers import CartSerializer, CartItemSerializer, CartItemUpdateSerializer
-from .models import Cart, CartItem
+from .services import RedisCart
+from .serializers import CartItemSerializer
+from products.models import Product
 
 # Create your views here.
 
 
-class CartView(generics.RetrieveAPIView):
-    serializer_class = CartSerializer
+class CartView(views.APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_object(self):
-        cart, _ = Cart.objects.get_or_create(user=self.request.user)
-        return cart
+    def get(self, request):
+        cart = RedisCart(request.user)
+        data = cart.get_cart_details()
+        return Response(data)
+    
+    def delete(self, request):
+        cart = RedisCart(request.user)
+        cart.clear()
+        return Response({"message": "Cart cleared"}, status=status.HTTP_204_NO_CONTENT)
 
 
-class AddItemView(generics.CreateAPIView):
-    queryset = CartItem.objects.all()
-    serializer_class = CartItemSerializer
+class CartItemsView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
-        cart, _ = Cart.objects.get_or_create(user=self.request.user)
-        product = serializer.validated_data["product"]
-        if CartItem.objects.filter(cart=cart, product=product).exists():
-            raise ValidationError(
-                {"error": "Product already in cart. Use the update endpoint instead"}
-            )
+    def post(self, request):
+        serializer = CartItemSerializer(data=request.data)
+        if serializer.is_valid():
+            product = serializer.validated_data['product']
+            quantity = serializer.validated_data.get('quantity', 1)
+            
+            cart = RedisCart(request.user)
+            cart.add(product.id, quantity)
 
-        serializer.save(cart=cart)
+            return Response({"message": "Item added to your cart"}, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def put(self, request, pk):
+        quantity = request.data.get('quantity')
+        if not quantity:
+            return Response({"error": "Quantity is required"}, status=400)
 
-class UpdateQuantityView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = CartItemUpdateSerializer
-    permission_classes = [IsAuthenticated]
-    lookup_field = "pk"
+        product = get_object_or_404(Product, id=pk)
+        cart = RedisCart(request.user)
+        cart.update(product_id=pk, quantity=int(quantity))
+        return Response({"message": "Quantity updated"})
 
-    def get_queryset(self):
-        return CartItem.objects.filter(cart__user=self.request.user)
-
-    def perform_update(self, serializer):
-        quantity = serializer.validated_data["quantity"]
-        serializer.save(quantity=quantity)
+    def delete(self, request, pk):
+        cart = RedisCart(request.user)
+        cart.remove(product_id=pk)
+        return Response({"message": "Item removed"}, status=status.HTTP_204_NO_CONTENT)
