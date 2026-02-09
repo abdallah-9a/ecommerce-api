@@ -9,8 +9,16 @@ class RedisCart:
         self.key = f"cart:user_{user.id}"
         self.redis = get_redis_connection("default")
 
-    def add(self, product_id, quantity=1):
+    def _check_stock(self, product_id, quantity):
+        """Helper method to validate stock"""
+        
         product = Product.objects.get(id=product_id)
+        if quantity > product.stock:
+            raise ValidationError(f"Not enough stock. Only {product.stock} available.")
+        return product
+    
+    def add(self, product_id, quantity=1):
+        product = self._check_stock(product_id, quantity)
         current_qty = int(self.redis.hget(self.key, product_id) or 0)
         new_qty = current_qty + quantity
         
@@ -25,6 +33,7 @@ class RedisCart:
 
     def update(self, product_id, quantity):
         if quantity > 0:
+            product = self._check_stock(product_id, quantity)
             self.redis.hset(self.key, product_id, quantity)
         else:
             self.remove(product_id)
@@ -51,15 +60,15 @@ class RedisCart:
             results.append({
                 "product_id": product.id,
                 "name": product.name,
-                "price": product.price,
+                "price": float(product.price),
                 "image": product.image.url if product.image else None,
                 "quantity": quantity,
-                "subtotal": subtotal
+                "subtotal": float(subtotal)
             })
 
         return {
             "items": results,
-            "total_price": total_price,
+            "total_price": float(total_price),
             "count": len(results)
         }
 
