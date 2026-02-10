@@ -13,4 +13,4 @@ class CartItemInputSerializer(serializers.Serializer):
 
 
 class CartItemUpdateSerializer(serializers.Serializer):
-    quantity = serializers.IntegerField(min_value=1)
+    quantity = serializers.IntegerField(min_value=0)

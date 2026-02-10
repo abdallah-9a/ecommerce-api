@@ -1,7 +1,8 @@
 from django.core.exceptions import ValidationError
-from rest_framework import views, status,viewsets
+from rest_framework import views, status, viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from products.models import Product
 from .services import RedisCart
 from .serializers import CartItemInputSerializer, CartItemUpdateSerializer
 
@@ -36,6 +37,8 @@ class CartItemsView(viewsets.ViewSet):
                 cart.add(product_id, quantity)
 
                 return Response({"message": "Item added to your cart"}, status=status.HTTP_201_CREATED)
+            except Product.DoesNotExist:
+                return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
             except ValidationError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -49,7 +52,12 @@ class CartItemsView(viewsets.ViewSet):
             try:
                 cart = RedisCart(request.user)
                 cart.update(product_id=pk, quantity=quantity)
-                return Response({"message": "Quantity updated"})
+                
+                if quantity == 0:
+                    return Response({"message": "Item removed from cart"}, status=status.HTTP_200_OK)
+                return Response({"message": "Quantity updated"}, status=status.HTTP_200_OK)
+            except Product.DoesNotExist:
+                return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
             except ValidationError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             

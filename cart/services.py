@@ -35,6 +35,7 @@ class RedisCart:
         if quantity > 0:
             product = self._check_stock(product_id, quantity)
             self.redis.hset(self.key, product_id, quantity)
+            self.redis.expire(self.key, 60 * 60 * 24 * 7) # 1 Week
         else:
             self.remove(product_id)
 
