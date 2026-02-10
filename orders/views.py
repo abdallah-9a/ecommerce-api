@@ -6,6 +6,8 @@ from rest_framework import generics, status, filters
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from .serializers import OrderSerializer, UpdateOrderStatusSerializer
 from .models import Order, OrderItem
+from products.models import Product
+from cart.services import RedisCart
 from common.pagination import CustomePagination
 
 # Create your views here.
@@ -21,30 +23,63 @@ class OrderListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return Order.objects.filter(user=self.request.user)
 
-    def perform_create(self, serializer):
-        cart = self.request.user.cart
-        if not cart.items.exists():
+    def create(self, request, *args, **kwargs):
+
+        cart = RedisCart(self.request.user)
+        cart_data = cart.get_cart_details()
+        items = cart_data.get("items", [])
+
+        if not items:
             raise ValidationError("Your Cart is Empty")
 
-        with transaction.atomic():
-            order = serializer.save(user=self.request.user)
+        try:
+            with transaction.atomic():
+                serializer = self.get_serializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                order = serializer.save(user=self.request.user)
 
-            for item in cart.items.all():
-                if item.quantity > item.product.stock:
-                    raise ValidationError(
-                        f"Not Enough Stock for {item.product}. Only {item.product.stock} left"
+                for item in items:
+                    product_id = item.get("product_id")
+                    quantity = item.get("quantity")
+
+                    try:
+                        product = Product.objects.select_for_update().get(id=product_id)
+
+                    except Product.DoesNotExist:
+                        raise ValidationError(
+                            f"Product with id {product_id} does not exist"
+                        )
+
+                    if product.stock < quantity:
+                        raise ValidationError(
+                            f"Not enough stock for product {product.name}, Only {product.stock} left"
+                        )
+
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        quantity=quantity,
+                        price=product.price,
                     )
-                OrderItem.objects.create(
-                    order=order,
-                    product=item.product,
-                    price=item.product.price,
-                    quantity=item.quantity,
-                )
 
-                item.product.stock -= item.quantity
-                item.product.save()
+                    product.stock -= quantity
+                    product.save()
 
-            cart.items.all().delete()
+                cart.clear()
+
+        except ValidationError as e:
+            return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": "An error occurred while processing your order.",
+                    "details": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 
 class OrderDetailView(generics.RetrieveAPIView):
@@ -62,8 +97,8 @@ class UpdateOrderStatusView(generics.UpdateAPIView):
     permission_classes = [IsAdminUser]
 
     def perform_update(self, serializer):
-        status = serializer.validated_data["status"]
-        if status == "canceled":
+        order_status = serializer.validated_data["status"]
+        if order_status == "canceled":
             raise ValidationError("You can't cancel this order")
         return super().perform_update(serializer)
 
@@ -71,25 +106,37 @@ class UpdateOrderStatusView(generics.UpdateAPIView):
 class CancelOrderView(generics.UpdateAPIView):
     serializer_class = UpdateOrderStatusSerializer
     permission_classes = [IsAuthenticated]
-
     def get_queryset(self):
         return Order.objects.filter(user=self.request.user)
-
     def update(self, request, *args, **kwargs):
         order = self.get_object()
+        try:
+            with transaction.atomic():
+                order = Order.objects.select_for_update().get(id=order.id)
+                if order.status != "pending":
+                    raise ValidationError("Only pending order can be canceled")
+                for item in order.items.select_related("product").all():
+                    product = Product.objects.select_for_update().get(
+                        id=item.product.id
+                    )
 
-        if order.user != request.user:
-            raise ValidationError("You can only cancel your own orders")
+                    product.stock += item.quantity
+                    product.save()
 
-        if order.status != "pending":
-            raise ValidationError("Only pending order can be canceled")
+                order.status = "canceled"
+                order.save()
 
-        for item in order.items.all():
-            item.product.stock += item.quantity
-            item.product.save()
-
-        order.status = "canceled"
-        order.save()
+        except ValidationError as e:
+            return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            return Response(
+                {
+                    "error": "An error occurred while canceling your order.",
+                    "details": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         return Response(
             {"detail": "Your order has been canceled"}, status=status.HTTP_200_OK

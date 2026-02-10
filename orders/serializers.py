@@ -15,6 +15,8 @@ class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     total_price = serializers.SerializerMethodField()
 
+    status = serializers.ChoiceField(read_only=True)
+    
     class Meta:
         model = Order
         fields = ["id", "user", "items", "status", "total_price"]
