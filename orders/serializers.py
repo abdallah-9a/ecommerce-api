@@ -15,7 +15,7 @@ class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     total_price = serializers.SerializerMethodField()
 
-    status = serializers.ChoiceField(read_only=True)
+    status = serializers.ChoiceField(choices=Order.STATUS_CHOICES, read_only=True)
     
     class Meta:
         model = Order
@@ -26,6 +26,8 @@ class OrderSerializer(serializers.ModelSerializer):
 
 
 class UpdateOrderStatusSerializer(serializers.ModelSerializer):
+    status = serializers.ChoiceField(choices=Order.STATUS_CHOICES, required=True)
+    
     class Meta:
         model = Order
         fields = ["status"]

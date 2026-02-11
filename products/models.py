@@ -1,6 +1,5 @@
 from django.db import models
-from slugify import slugify
-import re
+from django.utils.text import slugify
 
 # Create your models here.
 
@@ -31,9 +30,7 @@ class Product(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            pattern = r"[^a-z0-9\+\#\._-]"
-            slug = slugify(self.name, regex_pattern=pattern, lowercase=True)
-            self.slug = slug
+            self.slug = slugify(self.name)
 
         return super().save(*args, **kwargs)
 
