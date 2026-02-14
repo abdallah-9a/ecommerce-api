@@ -23,6 +23,8 @@ load_dotenv()
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("PUBLISHABLE_KEY")
+STRIPE_SECRET_KEY = os.environ.get("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -43,6 +45,7 @@ INSTALLED_APPS = [
     "products",
     "cart",
     "orders",
+    "payments",
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
