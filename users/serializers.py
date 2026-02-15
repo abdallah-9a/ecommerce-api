@@ -126,10 +126,13 @@ class ChangePasswordSerializer(serializers.ModelSerializer):
         if password != password2:
             raise serializers.ValidationError("Passwords Don't Match")
 
-        user.set_password(password)
-        user.save()
-
         return attrs
+    
+    def save(self, **kwargs):
+        user = self.context.get("user")
+        user.set_password(self.validated_data["password"])
+        user.save()
+        return user
 
 
 class SendPasswordRestEmailSerializer(serializers.Serializer):

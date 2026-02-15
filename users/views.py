@@ -104,6 +104,7 @@ class ChangePasswordView(APIView):
             data=request.data, context={"user": request.user}
         )
         serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(
             {"msg": "Password changed successfully"}, status=status.HTTP_200_OK
         )
@@ -143,7 +144,7 @@ class UserPasswordResetView(APIView):
             data=request.data, context={"uid": uid, "token": token}
         )
         serializer.is_valid(raise_exception=True)
-
+        serializer.save()
         return Response(
             {"msg": "Password reset successfully"}, status=status.HTTP_200_OK
         )
