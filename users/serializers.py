@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from django.utils.encoding import force_bytes, smart_str, DjangoUnicodeDecodeError
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from .models import User
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
@@ -162,31 +162,28 @@ class UserPasswordResetSerializer(serializers.Serializer):
         fields = ["password", "password2"]
 
     def validate(self, attrs):
+        password = attrs.get("password")
+        password2 = attrs.get("password2")
+
+        token = self.context.get("token")
+        uid = self.context.get("uid")
+
+        if password != password2:
+            raise serializers.ValidationError("Passwords Don't Match")
+
         try:
-            password = attrs.get("password")
-            password2 = attrs.get("password2")
-
-            token = self.context.get("token")
-            uid = self.context.get("uid")
-
-            if password != password2:
-                raise serializers.ValidationError("Passwords Don't Match")
-
             id = force_bytes(urlsafe_base64_decode(uid))
             user = User.objects.get(id=id)
+        except (ValueError, User.DoesNotExist):
+            raise serializers.ValidationError("Invalid reset link")
 
-            if not PasswordResetTokenGenerator().check_token(user, token):
-                raise serializers.ValidationError("Reset link is invalid or expired")
+        if not PasswordResetTokenGenerator().check_token(user, token):
+            raise serializers.ValidationError("Reset link is invalid or expired")
 
-            user.set_password(password)
-            user.save()
+        user.set_password(password)
+        user.save()
 
-            return attrs
-
-        except Exception:
-            raise serializers.ValidationError(
-                "Something went wrong with resetting password"
-            )
+        return attrs
 
 
 class UserSerializer(serializers.ModelSerializer):
