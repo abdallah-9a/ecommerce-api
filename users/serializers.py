@@ -25,7 +25,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {"password": {"write_only": True}}
 
-    # Vaidate password and confirm password while registration
+    # Validate password and confirm password while registration
     def validate(self, attrs):
         password = attrs.get("password")
         password2 = attrs.get("password2")
@@ -38,10 +38,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             email=validated_data["email"],
             username=validated_data["username"],
             password=validated_data["password"],
-            phone=validated_data.get("phone", ""),
-            address=validated_data.get("address", ""),
-            profile_picture=validated_data.get("profile_picture", ""),
-            date_of_birth=validated_data.get("date_of_birth", None),
+            phone=validated_data.get("phone"),
+            address=validated_data.get("address"),
+            profile_picture=validated_data.get("profile_picture"),
+            date_of_birth=validated_data.get("date_of_birth"),
         )
         return user
 
@@ -135,19 +135,11 @@ class ChangePasswordSerializer(serializers.ModelSerializer):
         return user
 
 
-class SendPasswordRestEmailSerializer(serializers.Serializer):
+class SendPasswordResetEmailSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=255)
 
     class Meta:
         fields = ["email"]
-
-    def validate(self, attrs):
-        email = attrs.get("email")
-
-        if not User.objects.filter(email=email).exists():
-            raise serializers.ValidationError("You are not Registered with us")
-
-        return attrs
 
 
 class UserPasswordResetSerializer(serializers.Serializer):

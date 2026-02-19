@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from django.contrib.auth import authenticate
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
@@ -16,7 +15,7 @@ from .serializers import (
     UserUpdateProfileSerializer,
     UserSerializer,
     ChangePasswordSerializer,
-    SendPasswordRestEmailSerializer,
+    SendPasswordResetEmailSerializer,
     UserPasswordResetSerializer,
 )
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -113,26 +112,26 @@ class ChangePasswordView(APIView):
 class SendPasswordResetEmailView(APIView):
 
     def post(self, request):
-        serializer = SendPasswordRestEmailSerializer(data=request.data)
+        serializer = SendPasswordResetEmailSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = request.data.get("email")
-        user = User.objects.get(email=email)
+        email = serializer.validated_data["email"]
+        user = User.objects.filter(email=email).first()
 
-        uid = urlsafe_base64_encode(force_bytes(user.id))
-        token = PasswordResetTokenGenerator().make_token(user)
+        if user:
+            uid = urlsafe_base64_encode(force_bytes(user.id))
+            token = PasswordResetTokenGenerator().make_token(user)
 
-        link = reverse("reset-password", kwargs={"uid": uid, "token": token})
-        # Build absolute URL for email
-        absolute_link = request.build_absolute_uri(link)
+            link = reverse("reset-password", kwargs={"uid": uid, "token": token})
+            absolute_link = request.build_absolute_uri(link)
 
-        # Send Email
-        body = f"Click the following link to reset your password: {absolute_link}"
-        data = {"subject": "reset your password", "body": body, "to_email": user.email}
-        Util.send_email(data)
+            body = f"Click the following link to reset your password: {absolute_link}"
+            data = {"subject": "reset your password", "body": body, "to_email": user.email}
+            Util.send_email(data)
 
+        # Always return the same response to prevent email enumeration
         return Response(
-            {"msg": "Password Reset link send. Please check your Email"},
+            {"msg": "If an account exists with this email, a password reset link has been sent."},
             status=status.HTTP_200_OK,
         )
 
