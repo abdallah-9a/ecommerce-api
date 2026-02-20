@@ -7,6 +7,9 @@ from django.utils.text import slugify
 class Category(models.Model):
     name = models.CharField(unique=True, max_length=150)
 
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     def __str__(self):
         return self.name
 
@@ -30,7 +33,13 @@ class Product(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 2
+            while Product.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
 
         return super().save(*args, **kwargs)
 
