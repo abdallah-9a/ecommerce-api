@@ -97,10 +97,15 @@ class UpdateOrderStatusView(generics.UpdateAPIView):
     permission_classes = [IsAdminUser]
 
     def perform_update(self, serializer):
-        order_status = serializer.validated_data["status"]
-        if order_status == "canceled":
-            raise ValidationError("You can't cancel this order")
-        return super().perform_update(serializer)
+        order = self.get_object()
+        new_status = serializer.validated_data["status"]
+        allowed = Order.VALID_STATUS_TRANSITIONS.get(order.status, [])
+        if new_status not in allowed:
+            raise ValidationError(
+                f"Cannot transition from '{order.status}' to '{new_status}'. "
+                f"Allowed transitions: {allowed}"
+            )
+        serializer.save()
 
 
 class CancelOrderView(generics.UpdateAPIView):

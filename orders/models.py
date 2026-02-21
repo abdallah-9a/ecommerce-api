@@ -13,10 +13,24 @@ class Order(models.Model):
         ("delivered", "Delivered"),
         ("canceled", "Canceled"),
     ]
+
+    VALID_STATUS_TRANSITIONS = {
+        "pending": ["paid", "canceled"],
+        "paid": ["shipped", "canceled"],
+        "shipped": ["delivered"],
+        "delivered": [],
+        "canceled": [],
+    }
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="orders"
     )
-    status = models.CharField(choices=STATUS_CHOICES, max_length=10, default="pending")
+    status = models.CharField(
+        choices=STATUS_CHOICES, max_length=10, default="pending", db_index=True
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Order #{self.id} for {self.user.username} ({self.status})"

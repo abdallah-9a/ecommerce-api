@@ -1,10 +1,12 @@
 import stripe
+from decimal import Decimal
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.shortcuts import get_object_or_404
 from orders.models import Order
+from .models import Payment
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 
@@ -31,6 +33,14 @@ class CreatePaymentIntentView(APIView):
                 metadata={
                     'order_id': order.id
                 }
+            )
+
+            Payment.objects.create(
+                order=order,
+                stripe_payment_intent_id=intent['id'],
+                amount=Decimal(amount) / 100,
+                currency='usd',
+                status='pending',
             )
 
             return Response({
@@ -61,7 +71,7 @@ def stripe_webhook(request):
 
     if event['type'] == 'payment_intent.succeeded':
         payment_intent = event['data']['object']
-        
+        intent_id = payment_intent['id']
         order_id = payment_intent['metadata'].get('order_id')
 
         if order_id:
@@ -69,10 +79,27 @@ def stripe_webhook(request):
                 order = Order.objects.get(id=order_id)
                 order.status = 'paid'
                 order.save()
-
             except Order.DoesNotExist:
-                raise ValueError("Order not found for payment intent")
+                return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+            Payment.objects.filter(
+                stripe_payment_intent_id=intent_id
+            ).update(status='succeeded')
+
+    elif event['type'] == 'payment_intent.payment_failed':
+        payment_intent = event['data']['object']
+        intent_id = payment_intent['id']
+
+        Payment.objects.filter(
+            stripe_payment_intent_id=intent_id
+        ).update(status='failed')
+
+    elif event['type'] == 'payment_intent.canceled':
+        payment_intent = event['data']['object']
+        intent_id = payment_intent['id']
+
+        Payment.objects.filter(
+            stripe_payment_intent_id=intent_id
+        ).update(status='canceled')
 
     return HttpResponse(status=status.HTTP_200_OK)
-
-    #TODO
