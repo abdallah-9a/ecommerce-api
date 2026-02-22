@@ -1,9 +1,10 @@
-from django.shortcuts import render
 from django.db import transaction
+from django.db.models import F, Sum
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from rest_framework import generics, status, filters
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import OrderSerializer, UpdateOrderStatusSerializer
 from .models import Order, OrderItem
 from products.models import Product
@@ -17,11 +18,17 @@ class OrderListCreateView(generics.ListCreateAPIView):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = CustomePagination
-    filter_backends = [filters.SearchFilter]
-    search_fields = ["status"]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["status"]
 
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)
+        return (
+            Order.objects.filter(user=self.request.user)
+            .prefetch_related("items__product")
+            .annotate(
+                annotated_total=Sum(F("items__price") * F("items__quantity"))
+            )
+        )
 
     def create(self, request, *args, **kwargs):
 
@@ -88,7 +95,13 @@ class OrderDetailView(generics.RetrieveAPIView):
     lookup_field = "pk"
 
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)
+        return (
+            Order.objects.filter(user=self.request.user)
+            .prefetch_related("items__product")
+            .annotate(
+                annotated_total=Sum(F("items__price") * F("items__quantity"))
+            )
+        )
 
 
 class UpdateOrderStatusView(generics.UpdateAPIView):
@@ -112,7 +125,13 @@ class CancelOrderView(generics.UpdateAPIView):
     serializer_class = UpdateOrderStatusSerializer
     permission_classes = [IsAuthenticated]
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)
+        return (
+            Order.objects.filter(user=self.request.user)
+            .prefetch_related("items__product")
+            .annotate(
+                annotated_total=Sum(F("items__price") * F("items__quantity"))
+            )
+        )
     def update(self, request, *args, **kwargs):
         order = self.get_object()
         try:
