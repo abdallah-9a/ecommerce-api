@@ -10,22 +10,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='cartitem',
-            name='cart',
-        ),
-        migrations.AlterUniqueTogether(
-            name='cartitem',
-            unique_together=None,
-        ),
-        migrations.RemoveField(
-            model_name='cartitem',
-            name='product',
+        migrations.DeleteModel(
+            name='CartItem',
         ),
         migrations.DeleteModel(
             name='Cart',
-        ),
-        migrations.DeleteModel(
-            name='CartItem',
         ),
     ]
