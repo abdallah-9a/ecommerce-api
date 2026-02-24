@@ -6,7 +6,6 @@ class ProductListSerializer(serializers.ModelSerializer):
     category = serializers.SlugRelatedField(
         queryset=Category.objects.all(), slug_field="name"
     )
-    image = serializers.ImageField(read_only=True)
 
     class Meta:
         model = Product
@@ -17,7 +16,6 @@ class ProductSerializer(serializers.ModelSerializer):
     category = serializers.SlugRelatedField(
         queryset=Category.objects.all(), slug_field="name"
     )
-    image = serializers.ImageField(read_only=True)
 
     class Meta:
         model = Product

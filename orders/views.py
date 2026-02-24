@@ -9,7 +9,7 @@ from .serializers import OrderSerializer, UpdateOrderStatusSerializer
 from .models import Order, OrderItem
 from products.models import Product
 from cart.services import RedisCart
-from common.pagination import CustomePagination
+from common.pagination import CustomPagination
 
 # Create your views here.
 
@@ -17,7 +17,7 @@ from common.pagination import CustomePagination
 class OrderListCreateView(generics.ListCreateAPIView):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class = CustomePagination
+    pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["status"]
 
@@ -163,5 +163,5 @@ class CancelOrderView(generics.UpdateAPIView):
             )
 
         return Response(
-            {"detail": "Your order has been canceled"}, status=status.HTTP_200_OK
+            {"message": "Your order has been canceled"}, status=status.HTTP_200_OK
         )

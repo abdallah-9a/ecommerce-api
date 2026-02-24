@@ -4,8 +4,8 @@ from .models import User
 
 
 # Register your models here.
-class USERAdmin(UserAdmin):
+class CustomUserAdmin(UserAdmin):
     list_display = ["id", "username", "email", "is_staff"]
 
 
-admin.site.register(User, USERAdmin)
+admin.site.register(User, CustomUserAdmin)

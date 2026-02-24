@@ -40,7 +40,7 @@ class UserRegistrationView(APIView):
         user = serializer.save()
         token = get_tokens_for_user(user)
         return Response(
-            {"token": token, "msg": "Registration successful"},
+            {"token": token, "message": "Registration successful"},
             status=status.HTTP_201_CREATED,
         )
 
@@ -63,7 +63,7 @@ class UserLoginView(APIView):
             )
         token = get_tokens_for_user(user)
         return Response(
-            {"token": token, "msg": "Login Success"}, status=status.HTTP_200_OK
+            {"token": token, "message": "Login Success"}, status=status.HTTP_200_OK
         )
 
 
@@ -76,7 +76,7 @@ class UserLogoutView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        return Response({"msg": "Logout Successful"}, status=status.HTTP_200_OK)
+        return Response({"message": "Logout Successful"}, status=status.HTTP_200_OK)
 
 
 class UserProfileView(APIView):
@@ -105,7 +105,7 @@ class ChangePasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(
-            {"msg": "Password changed successfully"}, status=status.HTTP_200_OK
+            {"message": "Password changed successfully"}, status=status.HTTP_200_OK
         )
 
 
@@ -131,7 +131,7 @@ class SendPasswordResetEmailView(APIView):
 
         # Always return the same response to prevent email enumeration
         return Response(
-            {"msg": "If an account exists with this email, a password reset link has been sent."},
+            {"message": "If an account exists with this email, a password reset link has been sent."},
             status=status.HTTP_200_OK,
         )
 
@@ -143,9 +143,8 @@ class UserPasswordResetView(APIView):
             data=request.data, context={"uid": uid, "token": token}
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
         return Response(
-            {"msg": "Password reset successfully"}, status=status.HTTP_200_OK
+            {"message": "Password reset successfully"}, status=status.HTTP_200_OK
         )
 
 

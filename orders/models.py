@@ -49,9 +49,3 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.product} x {self.quantity} (order #{self.order.id})"
-
-    def save(self, *args, **kwargs):
-        if self.price is None:
-            self.price = self.product.price
-
-        return super().save(*args, **kwargs)

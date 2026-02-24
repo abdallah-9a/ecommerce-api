@@ -8,7 +8,7 @@ from .serializers import (
     CategorySerializer,
     CategoryListSerializer,
 )
-from common.pagination import CustomePagination
+from common.pagination import CustomPagination
 from common.permissions import IsAdminOrReadOnly
 
 # Create your views here.
@@ -17,7 +17,7 @@ from common.permissions import IsAdminOrReadOnly
 class ProductListCreateView(generics.ListCreateAPIView):
     queryset = Product.objects.select_related("category").all()
     permission_classes = [IsAdminOrReadOnly]
-    pagination_class = CustomePagination
+    pagination_class = CustomPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ["name", "category__name"]
 
@@ -71,7 +71,7 @@ class ProductView(generics.RetrieveUpdateDestroyAPIView):
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Category.objects.all()
     serializer_class = CategoryListSerializer
-    pagination_class = CustomePagination
+    pagination_class = CustomPagination
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [filters.SearchFilter]
     search_fields = ["name"]

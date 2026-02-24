@@ -1,5 +1,4 @@
 from django_redis import get_redis_connection
-from django.conf import settings
 from products.models import Product  
 from django.core.exceptions import ValidationError
 

@@ -58,7 +58,7 @@ class OrderCancellationTestCase(APITestCase):
         response = self.client.put(self.cancel_url, {})
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("detail", response.data)
+        self.assertIn("message", response.data)
         
         # Verify order status changed
         self.order.refresh_from_db()
