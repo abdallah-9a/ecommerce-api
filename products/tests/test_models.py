@@ -12,7 +12,8 @@ class ModelsTest(TestCase):
         )
 
     def test_product_model_slug(self):
+        # Django's slugify strips +, #, ., @, /, &, !, etc.
         self.assertEqual(
             self.product.slug,
-            "cafe-c++-primer-#1-version-2.0_beta-alpha-email-path-rock-roll",
+            "cafe-c-primer-1-version-20_beta-alphaemailpathrock-roll",
         )

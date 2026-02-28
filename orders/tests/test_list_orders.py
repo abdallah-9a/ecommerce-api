@@ -138,7 +138,7 @@ class OrderListTestCase(APITestCase):
         """Test filtering orders by status 'pending'"""
         self.authenticate()
         
-        response = self.client.get(self.list_url, {"search": "pending"})
+        response = self.client.get(self.list_url, {"status": "pending"})
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
@@ -150,7 +150,7 @@ class OrderListTestCase(APITestCase):
         """Test filtering orders by status 'paid'"""
         self.authenticate()
         
-        response = self.client.get(self.list_url, {"search": "paid"})
+        response = self.client.get(self.list_url, {"status": "paid"})
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
@@ -162,7 +162,7 @@ class OrderListTestCase(APITestCase):
         """Test filtering orders by status 'shipped'"""
         self.authenticate()
         
-        response = self.client.get(self.list_url, {"search": "shipped"})
+        response = self.client.get(self.list_url, {"status": "shipped"})
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         

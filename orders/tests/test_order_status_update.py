@@ -71,8 +71,12 @@ class OrderStatusUpdateTestCase(APITestCase):
         self.assertEqual(self.order.status, "paid")
 
     def test_update_status_to_shipped(self):
-        """Test admin can update order status to 'shipped'"""
+        """Test admin can update order status to 'shipped' (pending -> paid -> shipped)"""
         self.authenticate_admin()
+
+        # First transition to paid
+        self.order.status = "paid"
+        self.order.save()
         
         response = self.client.put(self.update_url, {"status": "shipped"})
         
@@ -82,8 +86,12 @@ class OrderStatusUpdateTestCase(APITestCase):
         self.assertEqual(self.order.status, "shipped")
 
     def test_update_status_to_delivered(self):
-        """Test admin can update order status to 'delivered'"""
+        """Test admin can update order status to 'delivered' (pending -> paid -> shipped -> delivered)"""
         self.authenticate_admin()
+
+        # Transition through valid states
+        self.order.status = "shipped"
+        self.order.save()
         
         response = self.client.put(self.update_url, {"status": "delivered"})
         
@@ -92,11 +100,11 @@ class OrderStatusUpdateTestCase(APITestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, "delivered")
 
-    def test_update_status_to_canceled_fails(self):
-        """Test admin cannot set status to 'canceled' (must use cancel endpoint)"""
+    def test_update_status_invalid_transition(self):
+        """Test admin cannot skip states (e.g. pending -> delivered)"""
         self.authenticate_admin()
         
-        response = self.client.put(self.update_url, {"status": "canceled"})
+        response = self.client.put(self.update_url, {"status": "delivered"})
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         
@@ -146,12 +154,12 @@ class OrderStatusUpdateTestCase(APITestCase):
         """Test partial update (PATCH) of order status"""
         self.authenticate_admin()
         
-        response = self.client.patch(self.update_url, {"status": "shipped"})
+        response = self.client.patch(self.update_url, {"status": "paid"})
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         self.order.refresh_from_db()
-        self.assertEqual(self.order.status, "shipped")
+        self.assertEqual(self.order.status, "paid")
 
     def test_update_nonexistent_order(self):
         """Test updating status of non-existent order"""
@@ -163,19 +171,21 @@ class OrderStatusUpdateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-    def test_update_canceled_order_status(self):
-        """Test admin can update a canceled order status"""
+    def test_update_canceled_order_status_fails(self):
+        """Test admin cannot update a canceled order (terminal state)"""
         self.authenticate_admin()
         
         self.order.status = "canceled"
         self.order.save()
         
-        # Admin should be able to change status even for canceled orders
+        # Canceled is a terminal state — no transitions allowed
         response = self.client.put(self.update_url, {"status": "pending"})
         
-        # This depends on your business logic - adjust if needed
-        # Currently the code doesn't prevent this
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        
+        # Verify status was not changed
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, "canceled")
 
 
     def test_update_status_multiple_times(self):
