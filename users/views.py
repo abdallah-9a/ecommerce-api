@@ -7,6 +7,7 @@ from .models import User
 from .utils import Util
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -33,6 +34,8 @@ def get_tokens_for_user(user):
 
 
 class UserRegistrationView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "register"
 
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
@@ -46,6 +49,8 @@ class UserRegistrationView(APIView):
 
 
 class UserLoginView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request):
 
@@ -110,6 +115,8 @@ class ChangePasswordView(APIView):
 
 
 class SendPasswordResetEmailView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset"
 
     def post(self, request):
         serializer = SendPasswordResetEmailSerializer(data=request.data)
