@@ -1,6 +1,7 @@
 import stripe
 from decimal import Decimal
 from django.conf import settings
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -76,9 +77,10 @@ def stripe_webhook(request):
 
         if order_id:
             try:
-                order = Order.objects.get(id=order_id)
-                order.status = 'paid'
-                order.save()
+                with transaction.atomic():
+                    order = Order.objects.select_for_update().get(id=order_id)
+                    if order.can_transition_to('paid'):
+                        order.transition_to('paid')
             except Order.DoesNotExist:
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 

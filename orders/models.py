@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from rest_framework.exceptions import ValidationError
 from products.models import Product
 
 # Create your models here.
@@ -37,6 +38,23 @@ class Order(models.Model):
 
     def total_price(self):
         return sum(item.price * item.quantity for item in self.items.all())
+
+    def can_transition_to(self, new_status):
+        if self.status == new_status:
+            return True
+        allowed = self.VALID_STATUS_TRANSITIONS.get(self.status, [])
+        return new_status in allowed
+
+    def transition_to(self, new_status):
+        if not self.can_transition_to(new_status):
+            allowed = self.VALID_STATUS_TRANSITIONS.get(self.status, [])
+            raise ValidationError(
+                f"Cannot transition from '{self.status}' to '{new_status}'. "
+                f"Allowed transitions: {allowed}"
+            )
+        if self.status != new_status:
+            self.status = new_status
+            self.save(update_fields=["status", "updated_at"])
 
 
 class OrderItem(models.Model):

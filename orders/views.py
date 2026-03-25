@@ -112,13 +112,7 @@ class UpdateOrderStatusView(generics.UpdateAPIView):
     def perform_update(self, serializer):
         order = self.get_object()
         new_status = serializer.validated_data["status"]
-        allowed = Order.VALID_STATUS_TRANSITIONS.get(order.status, [])
-        if new_status not in allowed:
-            raise ValidationError(
-                f"Cannot transition from '{order.status}' to '{new_status}'. "
-                f"Allowed transitions: {allowed}"
-            )
-        serializer.save()
+        order.transition_to(new_status)
 
 
 class CancelOrderView(generics.UpdateAPIView):

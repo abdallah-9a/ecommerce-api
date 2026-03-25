@@ -185,3 +185,53 @@ class StripeWebhookTestCase(APITestCase):
         # Payment record should NOT be updated to succeeded
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, "pending")
+
+    @patch("payments.views.stripe.Webhook.construct_event")
+    def test_payment_succeeded_does_not_reopen_canceled_order(self, mock_construct):
+        self.order.status = "canceled"
+        self.order.save(update_fields=["status", "updated_at"])
+
+        event = self._build_event(
+            "payment_intent.succeeded", "pi_test_123", self.order.id
+        )
+        mock_construct.return_value = event
+
+        response = self.client.post(
+            self.url,
+            data=b"payload",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="test_sig",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, "canceled")
+
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, "succeeded")
+
+    @patch("payments.views.stripe.Webhook.construct_event")
+    def test_payment_succeeded_does_not_reopen_delivered_order(self, mock_construct):
+        self.order.status = "delivered"
+        self.order.save(update_fields=["status", "updated_at"])
+
+        event = self._build_event(
+            "payment_intent.succeeded", "pi_test_123", self.order.id
+        )
+        mock_construct.return_value = event
+
+        response = self.client.post(
+            self.url,
+            data=b"payload",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="test_sig",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, "delivered")
+
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, "succeeded")
