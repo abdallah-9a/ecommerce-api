@@ -1,4 +1,5 @@
 from django.urls import reverse
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 from .models import User
@@ -14,6 +15,8 @@ class UsersAPITestCase(APITestCase):
     ADMIN_PASSWORD = "admin1234"
 
     def setUp(self):
+        # Avoid cross-test leakage of DRF throttle counters.
+        cache.clear()
         self.client = APIClient()
         self.user = User.objects.create_user(
             username="user", email=self.USER_EMAIL, password=self.USER_PASSWORD
