@@ -63,6 +63,11 @@ class UsersAPITestCase(APITestCase):
         response = self.client.post(reverse("logout"), {"refresh": tokens["refresh"]})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_logout_invalid_refresh_token(self):
+        self.authenticate_user()
+        response = self.client.post(reverse("logout"), {"refresh": "invalid-token"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_profile(self):
         self.authenticate_user()
         response = self.client.get(reverse("profile"))
