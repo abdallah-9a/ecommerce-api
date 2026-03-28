@@ -4,7 +4,7 @@ from django.utils.encoding import force_bytes
 from django.urls import reverse
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from .models import User
-from .utils import Util
+from .tasks import send_reset_password_email_task
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -134,7 +134,7 @@ class SendPasswordResetEmailView(APIView):
 
             body = f"Click the following link to reset your password: {absolute_link}"
             data = {"subject": "reset your password", "body": body, "to_email": user.email}
-            Util.send_email(data)
+            send_reset_password_email_task.delay(data)
 
         # Always return the same response to prevent email enumeration
         return Response(
