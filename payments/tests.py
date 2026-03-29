@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from orders.models import Order, OrderItem
 from payments.models import Payment
+from payments.tasks import process_stripe_webhook_task
 from users.models import User
 from products.models import Product, Category
 
@@ -126,12 +127,14 @@ class StripeWebhookTestCase(APITestCase):
             },
         }
 
+    @patch("payments.views.process_stripe_webhook_task.delay")
     @patch("payments.views.stripe.Webhook.construct_event")
-    def test_payment_succeeded(self, mock_construct):
+    def test_payment_succeeded(self, mock_construct, mock_delay):
         event = self._build_event(
             "payment_intent.succeeded", "pi_test_123", self.order.id
         )
         mock_construct.return_value = event
+        mock_delay.side_effect = lambda e: process_stripe_webhook_task(e)
 
         response = self.client.post(
             self.url,
@@ -165,12 +168,14 @@ class StripeWebhookTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @patch("payments.views.process_stripe_webhook_task.delay")
     @patch("payments.views.stripe.Webhook.construct_event")
-    def test_nonexistent_order(self, mock_construct):
+    def test_nonexistent_order(self, mock_construct, mock_delay):
         event = self._build_event(
             "payment_intent.succeeded", "pi_test_123", 99999
         )
         mock_construct.return_value = event
+        mock_delay.side_effect = lambda e: process_stripe_webhook_task(e)
 
         response = self.client.post(
             self.url,
@@ -179,15 +184,16 @@ class StripeWebhookTestCase(APITestCase):
             HTTP_STRIPE_SIGNATURE="test_sig",
         )
 
-        # View returns 400 for nonexistent order
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Webhook accepts and enqueues processing asynchronously.
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Payment record should NOT be updated to succeeded
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, "pending")
 
+    @patch("payments.views.process_stripe_webhook_task.delay")
     @patch("payments.views.stripe.Webhook.construct_event")
-    def test_payment_succeeded_does_not_reopen_canceled_order(self, mock_construct):
+    def test_payment_succeeded_does_not_reopen_canceled_order(self, mock_construct, mock_delay):
         self.order.status = "canceled"
         self.order.save(update_fields=["status", "updated_at"])
 
@@ -195,6 +201,7 @@ class StripeWebhookTestCase(APITestCase):
             "payment_intent.succeeded", "pi_test_123", self.order.id
         )
         mock_construct.return_value = event
+        mock_delay.side_effect = lambda e: process_stripe_webhook_task(e)
 
         response = self.client.post(
             self.url,
@@ -211,8 +218,9 @@ class StripeWebhookTestCase(APITestCase):
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, "succeeded")
 
+    @patch("payments.views.process_stripe_webhook_task.delay")
     @patch("payments.views.stripe.Webhook.construct_event")
-    def test_payment_succeeded_does_not_reopen_delivered_order(self, mock_construct):
+    def test_payment_succeeded_does_not_reopen_delivered_order(self, mock_construct, mock_delay):
         self.order.status = "delivered"
         self.order.save(update_fields=["status", "updated_at"])
 
@@ -220,6 +228,7 @@ class StripeWebhookTestCase(APITestCase):
             "payment_intent.succeeded", "pi_test_123", self.order.id
         )
         mock_construct.return_value = event
+        mock_delay.side_effect = lambda e: process_stripe_webhook_task(e)
 
         response = self.client.post(
             self.url,
