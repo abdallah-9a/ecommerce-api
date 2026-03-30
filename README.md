@@ -1,118 +1,225 @@
-# Django E-commerce REST API
+# E-commerce API — Django REST, Redis Cart, Stripe Payments
 
-A comprehensive RESTful E-commerce API built with Django Rest Framework, featuring user authentication, product management, shopping cart functionality, order processing, and more.
+Production-minded E-commerce REST API built with **Django** and **Django REST Framework (DRF)**, featuring **JWT authentication**, a **Redis-backed cart**, **order processing with a robust state machine**, and **Stripe PaymentIntent** integration.
 
-## Project Overview
+Designed to demonstrate real backend engineering concerns: **async work offloading**, **data integrity**, **concurrency safety**, and **reliable webhook ingestion**.
 
-This Django-based e-commerce API provides a robust backend solution for online shopping applications. It includes user authentication with JWT tokens, product and category management, shopping cart functionality, and order processing capabilities.
+---
 
-### Key Features
+## Key Features
 
-- **User Authentication**: JWT-based authentication system with token refresh, login, logout, and password reset functionality
-- **User Management**: User registration, profile management, and admin-only user operations
-- **Product Catalog**: Product listing with categories, search, and filtering capabilities
-- **Shopping Cart**: Cart management with add, update, and remove item operations
-- **Order Processing**: Order creation, status tracking, and cancellation
-- **Admin Controls**: Admin-specific endpoints for product, category, and order management
-- **Pagination**: Custom pagination for list views
-- **Permissions**: Role-based permissions (admin vs regular users)
+- **JWT Authentication** (SimpleJWT): register/login/logout, profile, password change, password reset
+- **Product & Category management** with pagination and filtering
+- **Redis-backed cart** (fast reads/writes, expiration, stock checks)
+- **Order processing** from cart → order items + stock decrement
+- **Robust order state machine** preventing invalid transitions (e.g., `canceled → paid`)
+- **Stripe integration**: create PaymentIntent + webhook updates for payments
+- **Async processing with Celery + Redis** for non-blocking tasks (email + webhook processing; extensible to invoice/PDF generation)
+- **Concurrency control**: database row-level locking using `select_for_update()` during critical sections
 
-## API Endpoints
+---
 
-### Authentication & User Management
+## Quickstart (Local Development)
 
-| Endpoint                                   | Method | Description                        | Access        |
-| ------------------------------------------ | ------ | ---------------------------------- | ------------- |
-| `/api/users/register/`                     | POST   | Register a new user                | Public        |
-| `/api/users/login/`                        | POST   | Login and get JWT tokens           | Public        |
-| `/api/users/logout/`                       | POST   | Logout and blacklist refresh token | Authenticated |
-| `/api/users/me/`                           | GET    | Get user profile data              | Authenticated |
-| `/api/users/me/update/`                    | PUT    | Update user profile                | Authenticated |
-| `/api/users/`                              | GET    | List all users                     | Admin         |
-| `/api/users/<id>/`                         | GET    | Get specific user details          | Admin         |
-| `/api/users/change-password/`              | POST   | Change password                    | Authenticated |
-| `/api/users/send-reset-password-email/`    | POST   | Send password reset email          | Public        |
-| `/api/users/reset-password/<uid>/<token>/` | POST   | Reset password with token          | Public        |
+### Prerequisites
+
+- Python 3.10+
+- Redis (used for cart storage and Celery broker/result backend)
+- Stripe account (for PaymentIntents + webhook signature verification)
+
+### 1) Create and activate a virtual environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### 2) Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3) Configure environment variables
+
+Create a `.env` file at the project root:
+
+```env
+# Django
+SECRET_KEY=change-me
+
+# Email (used by password reset task)
+EMAIL_USER=your_email@example.com
+EMAIL_PASS=your_email_password
+FROM_EMAIL=your_email@example.com
+
+# Stripe
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Celery (optional overrides)
+CELERY_BROKER_URL=redis://127.0.0.1:6379/0
+CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/3
+```
+
+### 4) Run migrations
+
+```bash
+python manage.py migrate
+```
+
+### 5) Create an admin user (optional)
+
+```bash
+python manage.py createsuperuser
+```
+
+### 6) Start Redis
+
+If you already have Redis installed locally:
+
+```bash
+redis-server
+```
+
+By default, this project uses separate Redis logical databases:
+
+- `redis://127.0.0.1:6379/2` for cache/cart
+- `redis://127.0.0.1:6379/0` for the Celery broker
+- `redis://127.0.0.1:6379/3` for the Celery result backend
+
+Or via Docker:
+
+```bash
+docker run --rm -p 6379:6379 redis:7-alpine
+```
+
+### 7) Start Celery worker
+
+In a separate terminal:
+
+```bash
+celery -A ecommerce worker -l info
+```
+
+### 8) Run the Django development server
+
+```bash
+python manage.py runserver
+```
+
+---
+
+## Stripe Webhooks (Local)
+
+This project validates webhook signatures using `STRIPE_WEBHOOK_SECRET` and **queues processing** to Celery.
+
+Recommended local workflow using the Stripe CLI:
+
+```bash
+stripe listen --forward-to http://127.0.0.1:8000/api/v1/payments/webhook/
+```
+
+Then copy the printed webhook secret (`whsec_...`) into your `.env`.
+
+---
+
+## API Endpoints (Current Routes)
+
+Base URL prefix: `/api/v1/`
+
+### Auth & Users
+
+- `POST /api/v1/users/register/`
+- `POST /api/v1/users/login/`
+- `POST /api/v1/users/logout/`
+- `GET  /api/v1/users/me/`
+- `PUT  /api/v1/users/me/update/`
+- `POST /api/v1/users/change-password/`
+- `POST /api/v1/users/send-reset-password-email/`
+- `POST /api/v1/users/reset-password/<uid>/<token>/`
+- `GET  /api/v1/users/` (admin)
+- `GET  /api/v1/users/<id>/` (admin)
 
 ### Products & Categories
 
-| Endpoint                   | Method | Description                         | Access |
-| -------------------------- | ------ | ----------------------------------- | ------ |
-| `/api/v1/products/`        | GET    | List all products with pagination   | Public |
-| `/api/v1/products/`        | POST   | Create a new product                | Admin  |
-| `/api/v1/products/<id>/`   | GET    | Get product details                 | Public |
-| `/api/v1/products/<id>/`   | PUT    | Update a product                    | Admin  |
-| `/api/v1/products/<id>/`   | DELETE | Delete a product                    | Admin  |
-| `/api/v1/categories/`      | GET    | List all categories with pagination | Public |
-| `/api/v1/categories/`      | POST   | Create a new category               | Admin  |
-| `/api/v1/categories/<id>/` | GET    | Get category details                | Public |
-| `/api/v1/categories/<id>/` | PUT    | Update a category                   | Admin  |
-| `/api/v1/categories/<id>/` | DELETE | Delete a category                   | Admin  |
+- `GET/POST /api/v1/products/`
+- `GET/PUT/DELETE /api/v1/products/<id>/`
+- `GET/POST /api/v1/categories/`
+- `GET/PUT/DELETE /api/v1/categories/<id>/`
 
-### Shopping Cart
+### Cart (Redis-backed)
 
-| Endpoint                   | Method | Description               | Access        |
-| -------------------------- | ------ | ------------------------- | ------------- |
-| `/api/v1/cart/`            | GET    | View user's shopping cart | Authenticated |
-| `/api/v1/cart/add/`        | POST   | Add product to cart       | Authenticated |
-| `/api/v1/cart/items/<id>/` | GET    | View specific cart item   | Authenticated |
-| `/api/v1/cart/items/<id>/` | PUT    | Update cart item quantity | Authenticated |
-| `/api/v1/cart/items/<id>/` | DELETE | Remove item from cart     | Authenticated |
+- `GET  /api/v1/cart/`
+- `DELETE /api/v1/cart/` (clear cart)
+- `POST /api/v1/cart/items/` (add item)
+- `PUT  /api/v1/cart/items/<product_id>/` (update quantity)
+- `DELETE /api/v1/cart/items/<product_id>/` (remove)
 
 ### Orders
 
-| Endpoint                      | Method | Description                      | Access        |
-| ----------------------------- | ------ | -------------------------------- | ------------- |
-| `/api/v1/orders/`             | GET    | List user orders with pagination | Authenticated |
-| `/api/v1/orders/`             | POST   | Create new order from cart items | Authenticated |
-| `/api/v1/orders/<id>/`        | GET    | Get order details                | Authenticated |
-| `/api/v1/orders/<id>/status/` | PUT    | Update order status              | Admin         |
-| `/api/v1/orders/<id>/cancel/` | PUT    | Cancel an order                  | Authenticated |
+- `GET/POST /api/v1/orders/`
+- `GET /api/v1/orders/<id>/`
+- `PUT /api/v1/orders/<id>/status/` (admin)
+- `PUT /api/v1/orders/<id>/cancel/`
 
-### Installation
+### Payments (Stripe)
 
-1. Clone the repository:
+- `POST /api/v1/payments/create-payment-intent/`
+- `POST /api/v1/payments/webhook/` (Stripe)
 
-   ```
-   git clone https://github.com/yourusername/django-ecommerce-rest-api.git
-   cd django-ecommerce-rest-api
-   ```
+---
 
-2. Create and activate a virtual environment:
+## Authentication (JWT)
 
-   ```
-   python -m venv env
-   source env/bin/activate  # On Windows: env\Scripts\activate
-   ```
+After `login`/`register`, include the access token:
 
-3. Install dependencies:
+```http
+Authorization: Bearer <access_token>
+```
 
-   ```
-   pip install -r requirements.txt
-   ```
+---
 
-4. Set up environment variables:
-   Create a `.env` file in the project root with:
+## API Documentation (Swagger / Redoc)
 
-   ```
-   SECRET_KEY=your_secret_key
-   EMAIL_USER=your_email@example.com
-   EMAIL_PASS=your_email_password
-   ```
+OpenAPI schema and interactive documentation are available via **drf-spectacular**:
 
-5. Run migrations:
+- OpenAPI schema: `/api/schema/`
+- Swagger UI: `/api/docs/swagger/`
+- Redoc: `/api/docs/redoc/`
 
-   ```
-   python manage.py migrate
-   ```
+---
 
-6. Create a superuser:
+## Design Patterns Used
 
-   ```
-   python manage.py createsuperuser
-   ```
+- **Service Layer:** business logic encapsulation (e.g., Redis cart operations in a dedicated service)
+- **State Machine:** order status transitions are centrally enforced on the model
+- **Async Workers:** Celery tasks for background work (email + Stripe webhook processing)
 
-7. Run the development server:
-   ```
-   python manage.py runserver
-   ```
+---
+
+## Running Tests
+
+```bash
+python manage.py test
+```
+
+---
+
+## Future Improvements
+
+- **PostgreSQL migration** for production-grade transactions/locking and better scalability
+- **Dockerization** (Django + Redis + Celery) for reproducible local/prod environments
+- **CI/CD pipeline** (linting, unit tests, build, deploy)
+- **Idempotency for webhooks** (store processed event IDs) for extra safety under retries
+
+---
+
+## Tech Stack
+
+- Django, Django REST Framework
+- Celery + Redis
+- SQLite (development)
+- Stripe API
+

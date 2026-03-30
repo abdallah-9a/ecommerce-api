@@ -52,6 +52,8 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "django_filters",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
 ]
 
 MIDDLEWARE = [
@@ -156,6 +158,17 @@ REST_FRAMEWORK = {
         "register": "5/minute",
         "password_reset": "3/minute",
     },
+    "DEFAULT_SCHEMA_CLASS":"drf_spectacular.openapi.AutoSchema"
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'E-commerce API Project',
+    'DESCRIPTION': 'Advanced E-commerce API with Celery, Stripe, and Redis',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
 }
 
 # Email Configuration
